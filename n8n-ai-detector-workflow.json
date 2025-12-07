@@ -1,0 +1,375 @@
+{
+  "name": "AI Assignment Detector",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_DRIVE_FOLDER_ID",
+          "mode": "id"
+        },
+        "event": "fileUpdated",
+        "options": {}
+      },
+      "name": "New Submission (Google Drive Trigger)",
+      "type": "n8n-nodes-base. googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "name": "Download File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {
+          "joinPages": true
+        }
+      },
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text || '' }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "name": "Basic LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1. 4,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.0-flash-exp",
+        "options": {
+          "temperature": 0,
+          "topP": 1,
+          "topK": 40,
+          "maxOutputTokens": 2048
+        }
+      },
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        900,
+        480
+      ],
+      "credentials": {
+        "googleGeminiOAuth2Api": {
+          "id": "YOUR_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"title\": \"AI Content Detection Result\",\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"ai_score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 },\n    \"confidence\": { \"type\": \"string\", \"enum\": [\"Low\", \"Medium\", \"High\"] },\n    \"verdict\": { \"type\": \"string\", \"enum\": [\"Human\", \"Likely Human\", \"Mixed\", \"Likely AI\", \"AI-Generated\"] },\n    \"indicators\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\", \"minLength\": 1 },\n      \"minItems\": 2\n    },\n    \"human_elements\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\", \"minLength\": 1 },\n      \"minItems\": 1\n    },\n    \"human_elements_count\": { \"type\": \"integer\", \"minimum\": 0 },\n    \"ai_signatures\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\", \"minLength\": 1 },\n      \"minItems\": 0\n    },\n    \"ai_signatures_count\": { \"type\": \"integer\", \"minimum\": 0 },\n    \"analysis_breakdown\": {\n      \"type\": \"object\",\n      \"additionalProperties\": false,\n      \"properties\": {\n        \"linguistic_score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 },\n        \"content_score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 },\n        \"structural_score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 },\n        \"signature_score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 }\n      },\n      \"required\": [\"linguistic_score\", \"content_score\", \"structural_score\", \"signature_score\"]\n    },\n    \"red_flags\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\", \"minLength\": 1 },\n      \"minItems\": 0\n    },\n    \"recommendation\": { \"type\": \"string\", \"enum\": [\"APPROVE\", \"REVIEW\", \"FLAG\"] }\n  },\n  \"required\": [\n    \"ai_score\",\n    \"confidence\",\n    \"verdict\",\n    \"indicators\",\n    \"analysis_breakdown\",\n    \"recommendation\",\n    \"human_elements\",\n    \"human_elements_count\",\n    \"ai_signatures\",\n    \"ai_signatures_count\"\n  ]\n}",
+        "options": {}
+      },
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1. 2,
+      "position": [
+        900,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "system_prompt",
+              "name": "={{ \"You are an AI content detection system for academic assignments.  Decide how likely the provided text is AI-generated vs human-written using evidence-based analysis.  Replace all placeholder values with computed results.\\n\\nEvaluate the text across these dimensions:\\n\\nLINGUISTIC PATTERNS (30%):\\n- Sentence structure variety and complexity\\n- Natural flow vs.  formulaic transitions\\n- Vocabulary sophistication vs. overuse of advanced terms\\n- Presence of filler words, hesitations, or informal language\\n- Repetitive phrase patterns typical of LLMs\\n\\nCONTENT CHARACTERISTICS (25%):\\n- Depth of personal insight vs. generic observations\\n- Specific examples vs. broad generalizations\\n- Authentic voice and perspective\\n- Original thought vs. synthesized information\\n- Subject matter expertise consistency\\n\\nSTRUCTURAL ANOMALIES (20%):\\n- Perfectly balanced paragraphs\\n- Overly organized without natural digressions\\n- Consistent paragraph lengths\\n- Mechanical topic transitions\\n- Lack of organic development\\n\\nAI SIGNATURES (15%):\\n- Phrases like 'delve into,' 'it's important to note,' 'in conclusion'\\n- Excessive hedging: 'arguably,' 'potentially,' 'various'\\n- Lists of 3–5 items\\n- Overuse of: 'Furthermore,' 'Moreover,' 'Additionally'\\n- Perfect grammar with no minor errors\\n\\nHUMAN MARKERS (10%):\\n- Minor grammatical inconsistencies\\n- Casual asides or personal anecdotes\\n- Emotional undertones or passion\\n- Imperfect organization or tangential thoughts\\n- Domain-specific terminology used naturally\\n\\nSCORING SCALE:\\n0-20: Definitely Human\\n21-40: Likely Human\\n41-60: Uncertain/Mixed\\n61-80: Likely AI\\n81-100: Definitely AI\\n\\nOUTPUT FORMAT - Return ONLY valid JSON:\\n{\\n  \\\"ai_score\\\": 0,\\n  \\\"confidence\\\": \\\"Low\\\",\\n  \\\"verdict\\\": \\\"Human\\\",\\n  \\\"indicators\\\": [\\\"observation 1\\\", \\\"observation 2\\\", \\\"observation 3\\\"],\\n  \\\"human_elements\\\": [\\\"element 1\\\", \\\"element 2\\\"],\\n  \\\"ai_signatures\\\": [\\\"pattern 1\\\", \\\"pattern 2\\\"],\\n  \\\"analysis_breakdown\\\": {\\n    \\\"linguistic_score\\\": 0,\\n    \\\"content_score\\\": 0,\\n    \\\"structural_score\\\": 0,\\n    \\\"signature_score\\\": 0\\n  },\\n  \\\"red_flags\\\": [],\\n  \\\"recommendation\\\": \\\"APPROVE\\\"\\n}\\n\\nRULES:\\n- Be objective and focus on textual evidence\\n- Avoid false positives\\n- Consider academic level context\\n- Cite specific examples from the text\\n- ESL students are not automatically AI\\n- human_elements MUST NEVER be empty.  If genuine human markers are found, list them; if none are found, set to [\\\"None\\\"] (string literal). \\n- Return ONLY valid JSON with no additional text or markdown\\n- First character must be { and last must be }\\n- All numbers must be integers\\n\\nAnalyze the provided student assignment with precision, fairness, and accuracy. \" }}",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "System Prompt",
+      "type": "n8n-nodes-base. set",
+      "typeVersion": 3. 3,
+      "position": [
+        900,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user_message",
+              "name": "user_message",
+              "value": "={{ \"STUDENT ASSIGNMENT TEXT:\\n---\\n\" + ($json.text || '') + \"\\n---\\nCHAR_LENGTH: \" + (($json.text || '').length) + \"\\nFILE_NAME: \" + ($json.name || 'Unknown') + \"\\n\\nProduce the JSON assessment per system instructions.\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "User Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3. 3,
+      "position": [
+        900,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "limit",
+        "maxItems": 1
+      },
+      "name": "Keep Only First Item",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3.2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonOutput",
+        "jsonOutput": "={{ $now. format('MM/DD/YYYY HH:mm:ss') }}",
+        "options": {}
+      },
+      "name": "Current Timestamp",
+      "type": "n8n-nodes-base. dateTime",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Robustly get the parsed LLM result\nconst candidate = $json;\nconst parsed =\n  (candidate && typeof candidate === 'object' && candidate.ai_score !== undefined)\n    ? candidate\n    : (candidate && typeof candidate. output === 'object' && candidate.output.ai_score !== undefined)\n      ? candidate.output\n      : (candidate && typeof candidate.parsed === 'object' && candidate. parsed.ai_score !== undefined)\n        ? candidate.parsed\n        : candidate || {};\n\n// Try to pull file metadata from upstream nodes\nconst fileMeta =\n  $('Download File'). first()?.json ? ?\n  $('New Submission (Google Drive Trigger)').first()?.json ??\n  $('Extract from File').first()?.json ??\n  {};\n\nconst fileName =\n  fileMeta.name ||\n  fileMeta.fileName ||\n  fileMeta. title ||\n  fileMeta. originalFilename ||\n  fileMeta.file ||\n  'Unknown';\n\n// Helpers\nconst clamp = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));\nconst isNum = (v) => Number. isFinite(Number(v));\nconst toArr = (v) => Array.isArray(v) ? v : (v ?  [String(v)] : []);\nconst join = (a) => (Array.isArray(a) && a.length ?  a.join(' | ') : 'None');\n\n// Normalize arrays\nconst indicators = toArr(parsed.indicators);\nlet human = toArr(parsed.human_elements);\nlet aiSig = toArr(parsed.ai_signatures);\nconst redFlags = toArr(parsed.red_flags);\n\nif (human.length === 0) human = ['None'];\n\nconst humanCount = Number. isInteger(parsed.human_elements_count)\n  ? parsed.human_elements_count\n  : human.length;\n\nconst aiSigCount = Number.isInteger(parsed.ai_signatures_count)\n  ? parsed.ai_signatures_count\n  : aiSig.length;\n\n// Breakdown\nconst br = parsed.analysis_breakdown || {};\nconst linguistic = isNum(br.linguistic_score) ? Number(br.linguistic_score) : 0;\nconst content = isNum(br.content_score) ? Number(br.content_score) : 0;\nconst structural = isNum(br. structural_score) ? Number(br.structural_score) : 0;\nconst signature = isNum(br.signature_score) ?  Number(br.signature_score) : 0;\n\n// Build output row\nconst out = {\n  date: $json.timestamp || $now.format('MM/DD/YYYY'),\n  file_name: fileName,\n\n  ai_score: clamp(parsed. ai_score),\n  verdict: parsed.verdict || 'Mixed',\n  confidence: parsed.confidence || 'Medium',\n  recommendation: parsed.recommendation || 'REVIEW',\n\n  indicators: join(indicators),\n  human_elements: join(human),\n  human_elements_count: humanCount,\n\n  ai_signatures: join(aiSig),\n  ai_signatures_count: aiSigCount,\n\n  linguistic_score: linguistic,\n  content_score: content,\n  structural_score: structural,\n  signature_score: signature,\n\n  red_flags: join(redFlags),\n\n  text_preview: ($('Extract from File').first()?.json?. text || '').slice(0, 200)\n};\n\nreturn { json: out };"
+      },
+      "name": "Prepare Sheet Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "file_name": "={{ $json.file_name || 'Unknown' }}",
+            "ai_score": "={{ $json.ai_score }}",
+            "verdict": "={{ $json.verdict || 'Mixed' }}",
+            "confidence": "={{ $json. confidence || 'Medium' }}",
+            "recommendation": "={{ $json.recommendation || ($json.ai_score >= 61 ? 'FLAG' : ($json.ai_score <= 40 ? 'APPROVE' : 'REVIEW')) }}",
+            "indicators": "={{ $json.indicators }}",
+            "human_elements": "={{ $json.human_elements }}",
+            "human_elements_count": "={{ $json.human_elements_count ??  0 }}",
+            "ai_signatures": "={{ $json.ai_signatures }}",
+            "ai_signatures_count": "={{ $json.ai_signatures_count ?? 0 }}",
+            "linguistic_score": "={{ $json.linguistic_score ??  0 }}",
+            "content_score": "={{ $json.content_score ?? 0 }}",
+            "structural_score": "={{ $json.structural_score ?? 0 }}",
+            "signature_score": "={{ $json.signature_score ?? 0 }}",
+            "red_flags": "={{ $json. red_flags }}",
+            "text_preview": "={{ $json.text_preview }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "name": "Log Results (Google Sheets)",
+      "type": "n8n-nodes-base. googleSheets",
+      "typeVersion": 4. 4,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "New Submission (Google Drive Trigger)": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Keep Only First Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Only First Item": {
+      "main": [
+        [
+          {
+            "node": "Current Timestamp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Current Timestamp": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sheet Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sheet Row": {
+      "main": [
+        [
+          {
+            "node": "Log Results (Google Sheets)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-19T00:00:00.000Z",
+  "versionId": "1"
+}
