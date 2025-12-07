@@ -11,7 +11,7 @@ Automated n8n workflow that scans student PDF assignments uploaded to Google Dri
 
 - ✅ **Automated PDF Monitoring** – Watches a Google Drive folder for new/updated PDFs
 - ✅ **Text Extraction** – Extracts and joins all pages into a single text block
-- ✅ **AI Detection with Gemini 2.0** – Uses a deterministic, evidence-based prompt for consistent scoring
+- ✅ **AI Detection with Gemini 2.5** – Uses a deterministic, evidence-based prompt for consistent scoring
 - ✅ **Structured JSON Output** – Validates against a strict schema for reliable parsing
 - ✅ **Google Sheets Logging** – Appends one row per assignment with AI score, verdict, confidence, breakdown, and red flags
 - ✅ **Stable & Deterministic** – Temperature = 0, single-item enforcement, no retries on success
